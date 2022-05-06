@@ -6,7 +6,6 @@ Created on Wed Jan 10 13:54:12 2018
          Mariana Nogueira
 """
 
-import time
 import numpy as np
 import picos as pic
 import warnings
@@ -23,7 +22,7 @@ try:
 except ImportError:
     pass
 
-import .lib
+import lib
 
 
 # class MKL():
