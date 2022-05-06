@@ -38,7 +38,7 @@ setup(
     py_modules = ["libPyMKL"],
     ext_modules=[
         Extension(
-            "libPyMKL",
+            "PyMKL/lib/libPyMKL",
             ["PyMKL/lib/libPyMKL.c",],
         ),
     ],
