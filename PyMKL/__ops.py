@@ -22,86 +22,7 @@ try:
 except ImportError:
     pass
 
-import lib
-
-
-# class MKL():
-
-#     def __init__(self, X: Union[List[np.ndarray], Dict[str, np.ndarray]], maxiter: int = 25, sig_knn: int = None, 
-#                        sparse_knn: int = None, eps: float = 1e-6, precision: str = "low", verbose: bool = True):
-#         """Unsupervised Multiple Kernel Learning formulation.
-#         Inputs:
-#         * X:            List of M numpy arrays, each consisting of a NxD stack of the samples under those features.
-#         * maxiter:      Maximum allowed number of iterations.
-#         * sig_knn:      Number of neighbours for the kernel. Defaults to the square root of the number of samples.
-#         * sparse_knn:   Number of neighbours for the sparsing of the global affinity matrix. Defaults to the square root of the number of samples.
-#         * eps:        Machine epsilon.
-#         * precision:    Precision of the convex optimization algorithm
-#         """
-
-#         # Store inputs
-#         if isinstance(X, list):
-#             names = list(range(len(X)))
-#         elif isinstance(X, dict):
-#             names = [k for k in X]
-#             X = [X[k] for k in names]
-#         else:
-#             raise ValueError(f"Input X can only be a list of np.ndarray or a dict. Got {type(X)}")
-#         self.X          = X 
-#         self.names      = names 
-#         self.sparse_knn = sparse_knn
-#         self.sig_knn    = sig_knn
-#         self.iter       = 0
-#         self.maxiter    = maxiter
-#         self.precision  = precision
-#         self.M          = len(X)
-#         self.N          = X[0].shape[0]
-#         if np.all(np.diff([X[i].shape[0] for i in range(self.M)]) == 0):
-#             if np.all(np.diff([X[i].shape[1] for i in range(self.M)]) == 0):
-#                 warnings.warn("Observations provided in the second dimension of the arrays of X. Transposing, but be aware of this: might be an error!")
-#                 self.X  = [x.T for x in self.X]
-#                 self.N  = X[0].shape[0]
-#             else:
-#                 raise ValueError("First dimension of np.ndarrays in X must be the number of observations")
-#         else:
-#             raise ValueError("First dimension of np.ndarrays in X must be the number of observations")
-#         if self.M >= 65:
-#             warnings.warn("BEWARE! The algorithm is not guaranteed to converge with 60+ input features.")
-
-#         # Preprocess inputs
-#         self.sparse_knn = sparse_knn if (sparse_knn is not None) else math.floor(np.sqrt(self.N))
-#         self.sig_knn    = sig_knn    if (sig_knn    is not None) else math.floor(np.sqrt(self.N))
-
-#         # Stack kernels for MKL
-#         K, var              = __kernel_stack(X, self.M, self.N, self.sig_knn)
-#         sparse_W, D         = __get_sparse_W_and_D(K, self.M, var, self.sparse_knn)
-
-#         # Break symmetry
-#         preconditioner      = 0.00*np.random.rand(self.M, 1) + np.ones((self.M, 1))
-
-#         self.K              = K
-#         self.sparse_W       = sparse_W
-#         self.D              = D
-#         self.var            = var
-#         self.betas          = preconditioner/np.sum(preconditioner)
-#         self.eps            = eps
-#         self.fitted         = False
-#         self.energy            = np.array([])
-#         self.constr         = np.array([])
-#         self.verbose        = verbose
-
-#         if self.precision.lower() not in ["low","medium","high","best"]:
-#             raise
-#         else:
-#             # See http://cvxr.com/cvx/doc/solver.html#controlling-precision
-#             if self.precision.lower() == "low":
-#                 self.__precision_eps = np.finfo(np.double).eps**(3./8)
-#             elif self.precision.lower() == "medium":
-#                 self.__precision_eps = np.finfo(np.double).eps**(1./2)
-#             elif self.precision.lower() == "high":
-#                 self.__precision_eps = np.finfo(np.double).eps**(3./4)
-#             elif self.precision.lower() == "best":
-#                 self.__precision_eps = np.finfo(np.double).eps
+import PyMKL.lib
 
 class MKL():
     def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
@@ -143,20 +64,20 @@ class MKL():
 
         try:
             numWorkers      = effective_n_jobs()
-            values          = lib.create_ivalues(numWorkers,self.N)
+            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             SW_betas        = np.zeros((self.N, self.N))
             SD_betas        = np.zeros((self.N, self.N))
 
-            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
+            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
             for (SW_betastmp,SD_betastmp) in ParallelResult:
                 SW_betas    = SW_betas + SW_betastmp
                 SD_betas    = SD_betas + SD_betastmp
         except NameError:
-            (SW_betas,SD_betas) = lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),0,self.N)
+            (SW_betas,SD_betas) = PyMKL.lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),0,self.N)
         except KeyboardInterrupt:
             raise
 
@@ -164,8 +85,8 @@ class MKL():
         SD_betas            = SD_betas + np.triu(SD_betas,1).T
 
         ## TRANSFORM THE MATRICES TO POSITIVE DEFINITE ##
-        SW_betas            = np.real(lib.to_PDM(SW_betas, self.eps)) + self.eps*np.eye(self.N)
-        SD_betas            = np.real(lib.to_PDM(SD_betas, self.eps)) + self.eps*np.eye(self.N)
+        SW_betas            = np.real(PyMKL.lib.to_PDM(SW_betas, self.eps)) + self.eps*np.eye(self.N)
+        SD_betas            = np.real(PyMKL.lib.to_PDM(SD_betas, self.eps)) + self.eps*np.eye(self.N)
 
         # Avoid numerical errors
         SW_betas            = 0.5*(SW_betas + SW_betas.T)
@@ -194,20 +115,20 @@ class MKL():
         # Use C compiled code
         try:
             numWorkers      = effective_n_jobs()
-            values          = lib.create_ivalues(numWorkers,self.N)
+            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             SW_A            = np.zeros((self.M, self.M))
             SD_A            = np.zeros((self.M, self.M))
 
-            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
+            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
             for (SW_Atmp,SD_Atmp) in ParallelResult:
                 SW_A        = SW_A + SW_Atmp
                 SD_A        = SD_A + SD_Atmp
         except NameError:
-            (SW_A,SD_A)     = lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),0,self.N)
+            (SW_A,SD_A)     = PyMKL.lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),0,self.N)
         except KeyboardInterrupt:
             raise
 
@@ -241,14 +162,14 @@ class MKL():
     def __compute_ENERGY_caller(self):
         try:
             numWorkers      = effective_n_jobs()
-            values          = lib.create_ivalues(numWorkers,self.N)
+            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             gap             = 0
             constr          = 0
 
-            ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), start_values[i],end_values[i]) for i in range(len(start_values)))
+            ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), start_values[i],end_values[i]) for i in range(len(start_values)))
 
             for (gaptmp,constrtmp) in ParallelResult:
                 gap         = gap    + gaptmp
@@ -257,7 +178,7 @@ class MKL():
             gap             = gap
             constr          = constr
         except NameError:
-            (gap, constr)   = lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), 0, self.N)
+            (gap, constr)   = PyMKL.lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), 0, self.N)
         except KeyboardInterrupt:
             raise
 
