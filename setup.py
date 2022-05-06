@@ -33,19 +33,6 @@ def get_version(rel_path):
     else:
         raise RuntimeError("Unable to find version string.")
 
-# Compile C++ code
-# setup(
-#     py_modules = ["libPyMKL"],
-#     ext_modules=[
-#         Extension(
-#             "PyMKL/lib/libPyMKL",
-#             ["PyMKL/lib/libPyMKL.c",],
-#         ),
-#     ],
-#     cmdclass={'build_ext': build_ext},
-# )
-
-
 # Generate Python library
 setup(
     name="PyMKL",
