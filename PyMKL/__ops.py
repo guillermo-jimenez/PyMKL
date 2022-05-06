@@ -23,7 +23,7 @@ try:
 except ImportError:
     pass
 
-import lib
+import .lib
 
 
 # class MKL():
