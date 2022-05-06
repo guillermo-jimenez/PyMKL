@@ -22,7 +22,7 @@ try:
 except ImportError:
     pass
 
-import PyMKL.lib
+import lib
 
 class MKL():
     def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
@@ -64,20 +64,20 @@ class MKL():
 
         try:
             numWorkers      = effective_n_jobs()
-            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
+            values          = lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             SW_betas        = np.zeros((self.N, self.N))
             SD_betas        = np.zeros((self.N, self.N))
 
-            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
+            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
             for (SW_betastmp,SD_betastmp) in ParallelResult:
                 SW_betas    = SW_betas + SW_betastmp
                 SD_betas    = SD_betas + SD_betastmp
         except NameError:
-            (SW_betas,SD_betas) = PyMKL.lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),0,self.N)
+            (SW_betas,SD_betas) = lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D),0,self.N)
         except KeyboardInterrupt:
             raise
 
@@ -85,8 +85,8 @@ class MKL():
         SD_betas            = SD_betas + np.triu(SD_betas,1).T
 
         ## TRANSFORM THE MATRICES TO POSITIVE DEFINITE ##
-        SW_betas            = np.real(PyMKL.lib.to_PDM(SW_betas, self.eps)) + self.eps*np.eye(self.N)
-        SD_betas            = np.real(PyMKL.lib.to_PDM(SD_betas, self.eps)) + self.eps*np.eye(self.N)
+        SW_betas            = np.real(lib.to_PDM(SW_betas, self.eps)) + self.eps*np.eye(self.N)
+        SD_betas            = np.real(lib.to_PDM(SD_betas, self.eps)) + self.eps*np.eye(self.N)
 
         # Avoid numerical errors
         SW_betas            = 0.5*(SW_betas + SW_betas.T)
@@ -115,20 +115,20 @@ class MKL():
         # Use C compiled code
         try:
             numWorkers      = effective_n_jobs()
-            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
+            values          = lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             SW_A            = np.zeros((self.M, self.M))
             SD_A            = np.zeros((self.M, self.M))
 
-            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
+            ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
             for (SW_Atmp,SD_Atmp) in ParallelResult:
                 SW_A        = SW_A + SW_Atmp
                 SD_A        = SD_A + SD_Atmp
         except NameError:
-            (SW_A,SD_A)     = PyMKL.lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),0,self.N)
+            (SW_A,SD_A)     = lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D),0,self.N)
         except KeyboardInterrupt:
             raise
 
@@ -162,14 +162,14 @@ class MKL():
     def __compute_ENERGY_caller(self):
         try:
             numWorkers      = effective_n_jobs()
-            values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
+            values          = lib.create_ivalues(numWorkers,self.N)
             start_values    = values[0:-1]
             end_values      = values[1:]
 
             gap             = 0
             constr          = 0
 
-            ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), start_values[i],end_values[i]) for i in range(len(start_values)))
+            ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), start_values[i],end_values[i]) for i in range(len(start_values)))
 
             for (gaptmp,constrtmp) in ParallelResult:
                 gap         = gap    + gaptmp
@@ -178,7 +178,7 @@ class MKL():
             gap             = gap
             constr          = constr
         except NameError:
-            (gap, constr)   = PyMKL.lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), 0, self.N)
+            (gap, constr)   = lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D), 0, self.N)
         except KeyboardInterrupt:
             raise
 
