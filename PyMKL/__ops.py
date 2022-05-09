@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan 10 13:54:12 2018
+Created on May 9 2022
 
 @author: Guillermo Jimenez-Perez
          Mariana Nogueira
@@ -26,7 +26,7 @@ import PyMKL.lib
 
 class MKL():
     def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
-                 eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt"):
+                 eps: float = 1e-6, verbose: bool = True, solver: str = "smcp"):
         """Unsupervised Multiple Kernel Learning formulation.
         Inputs:
         * X:            List of M numpy arrays, each consisting of a NxD stack of the samples under those features.
