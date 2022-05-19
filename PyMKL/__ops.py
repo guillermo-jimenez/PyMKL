@@ -44,6 +44,7 @@ class MKL():
         self.maxiter    = maxiter
         self.solver     = solver
         self.lib        = lib if ((lib is not None) and isinstance(lib,str)) else "cpp"
+        self.flagCpp    = PyMKL.lib.flagCpp
         self.M          = self.K.shape[0]
         self.N          = self.K.shape[1]
         self.eps        = eps
@@ -56,8 +57,8 @@ class MKL():
             self.lib    = "cpp"
             self.__lib  = PyMKL.lib.cpp
             warnings.warn("Selecting C++ as default")
-        if (self.lib.lower() == "numba") or not self.lib.flagCpp:
-            if (self.lib.lower() == "cpp") and not self.lib.flagCpp:
+        if (self.lib.lower() == "numba") or not self.flagCpp:
+            if (self.lib.lower() == "cpp") and not self.flagCpp:
                 warnings.warn("ERROR! C++ not imported correctly. Falling back to numba")
             self.lib    = "numba"
             self.__lib  = PyMKL.lib.numba

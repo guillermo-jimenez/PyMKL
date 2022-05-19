@@ -12,3 +12,5 @@ except:
     from PyMKL.lib.numba import computeSWA
     from PyMKL.lib.numba import computeSWB
     flagCpp = False
+from .__ops import to_PDM
+from .__ops import create_ivalues
