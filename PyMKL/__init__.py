@@ -5,4 +5,4 @@ import PyMKL.analysis
 import PyMKL.plot
 from PyMKL.lib import useNumba, useCpp
 
-__version__ = "0.0.2.1"
+__version__ = "0.0.2.2"
