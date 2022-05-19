@@ -26,7 +26,8 @@ import PyMKL.lib
 
 class MKL():
     def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
-                 eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt"):
+                 eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt", 
+                 lib: str = None):
         """Unsupervised Multiple Kernel Learning formulation.
         Inputs:
         * X:            List of M numpy arrays, each consisting of a NxD stack of the samples under those features.
@@ -42,6 +43,7 @@ class MKL():
         self.iter       = 0
         self.maxiter    = maxiter
         self.solver     = solver
+        self.lib        = lib if ((lib is not None) and isinstance(lib,str)) else "cpp"
         self.M          = self.K.shape[0]
         self.N          = self.K.shape[1]
         self.eps        = eps
@@ -50,6 +52,16 @@ class MKL():
             warnings.warn("BEWARE! The algorithm is not guaranteed to converge with 60+ input features.")
         if self.solver != "smcp":
             warnings.warn("BEWARE! Algorithm works much better with the 'smcp' solver, installed via 'pip install smcp', but some systems fail when installing it")
+        if self.lib.lower() not in ["cpp", "numba"]:
+            self.lib    = "cpp"
+            self.__lib  = PyMKL.lib.cpp
+            warnings.warn("Selecting C++ as default")
+        if (self.lib.lower() == "numba") or not self.lib.flagCpp:
+            if (self.lib.lower() == "cpp") and not self.lib.flagCpp:
+                warnings.warn("ERROR! C++ not imported correctly. Falling back to numba")
+            self.lib    = "numba"
+            self.__lib  = PyMKL.lib.numba
+            self.flagCpp= False
 
         # Break symmetry
         preconditioner  = 0.00*np.random.rand(self.M, 1) + np.ones((self.M, 1))
@@ -63,7 +75,7 @@ class MKL():
 
     def __compute_SWB_caller(self):  # solve for A (generalized eigenvalue problem)
         # compute sides of GEP
-        if PyMKL.lib.flagCpp:
+        if self.lib == "cpp":
             try:
                 numWorkers          = effective_n_jobs()
                 values              = PyMKL.lib.create_ivalues(numWorkers,self.N)
@@ -73,17 +85,17 @@ class MKL():
                 SW_betas            = np.zeros((self.N, self.N))
                 SD_betas            = np.zeros((self.N, self.N))
 
-                ParallelResult      = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),start_values[i],end_values[i]) for i in range(len(start_values)))    
+                ParallelResult      = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(self.__lib.computeSWB)(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
                 for (SW_betastmp,SD_betastmp) in ParallelResult:
                     SW_betas        = SW_betas + SW_betastmp
                     SD_betas        = SD_betas + SD_betastmp
             except NameError:
-                (SW_betas,SD_betas) = PyMKL.lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),0,self.N)
+                (SW_betas,SD_betas) = self.__lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),0,self.N)
             except KeyboardInterrupt:
                 raise
         else:
-            (SW_betas,SD_betas)     = PyMKL.lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),0,self.N)
+            (SW_betas,SD_betas)     = self.__lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),0,self.N)
 
         SW_betas            = SW_betas + np.triu(SW_betas,1).T
         SD_betas            = SD_betas + np.triu(SD_betas,1).T
@@ -117,7 +129,7 @@ class MKL():
 
     def __compute_SWA_caller(self):  # semidefinite optimization problem
         # Use C compiled code
-        if PyMKL.lib.flagCpp:
+        if self.lib == "cpp":
             try:
                 numWorkers      = effective_n_jobs()
                 values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
@@ -127,17 +139,17 @@ class MKL():
                 SW_A            = np.zeros((self.M, self.M))
                 SD_A            = np.zeros((self.M, self.M))
 
-                ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),start_values[i],end_values[i]) for i in range(len(start_values)))    
+                ParallelResult  = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(self.__lib.computeSWA)(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),start_values[i],end_values[i]) for i in range(len(start_values)))    
 
                 for (SW_Atmp,SD_Atmp) in ParallelResult:
                     SW_A        = SW_A + SW_Atmp
                     SD_A        = SD_A + SD_Atmp
             except NameError:
-                (SW_A,SD_A)     = PyMKL.lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),0,self.N)
+                (SW_A,SD_A)     = self.__lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),0,self.N)
             except KeyboardInterrupt:
                 raise
         else:
-            (SW_A,SD_A)         = PyMKL.lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),0,self.N)
+            (SW_A,SD_A)         = self.__lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),0,self.N)
 
         # Solve solution throwing double the result in C compiled code
         SW_A                = (SW_A + np.triu(SW_A,1).T)
@@ -167,7 +179,7 @@ class MKL():
         self.betas          = betas
 
     def __compute_ENERGY_caller(self):
-        if PyMKL.lib.flagCpp:
+        if self.lib == "cpp":
             try:
                 numWorkers      = effective_n_jobs()
                 values          = PyMKL.lib.create_ivalues(numWorkers,self.N)
@@ -177,7 +189,7 @@ class MKL():
                 gap             = 0
                 constr          = 0
 
-                ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(PyMKL.lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), start_values[i],end_values[i]) for i in range(len(start_values)))
+                ParallelResult = Parallel(n_jobs=numWorkers, prefer="threads")(delayed(self.__lib.computeENERGY)(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), start_values[i],end_values[i]) for i in range(len(start_values)))
 
                 for (gaptmp,constrtmp) in ParallelResult:
                     gap         = gap    + gaptmp
@@ -186,11 +198,11 @@ class MKL():
                 gap             = gap
                 constr          = constr
             except NameError:
-                (gap, constr)   = PyMKL.lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), 0, self.N)
+                (gap, constr)   = self.__lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), 0, self.N)
             except KeyboardInterrupt:
                 raise
         else:
-            (gap, constr)       = PyMKL.lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), 0, self.N)
+            (gap, constr)       = self.__lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), 0, self.N)
 
         # Store energy
         self.energy.append(gap)

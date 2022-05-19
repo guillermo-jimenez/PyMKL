@@ -59,8 +59,8 @@ try:
         py_modules = ["libPyMKL"],
         ext_modules=[
             Extension(
-                "PyMKL/lib/libPyMKL",
-                ["PyMKL/lib/libPyMKL.c",],
+                "PyMKL/lib/cpp/libPyMKL",
+                ["PyMKL/lib/cpp/libPyMKL.c",],
             ),
         ],
         cmdclass={'build_ext': build_ext},
