@@ -55,14 +55,20 @@ class MKL():
             warnings.warn("BEWARE! Algorithm works much better with the 'smcp' solver, installed via 'pip install smcp', but some systems fail when installing it")
         if self.lib.lower() not in ["cpp", "numba"]:
             self.lib    = "cpp"
-            self.lib_fcn= PyMKL.lib.cpp
             warnings.warn("Selecting C++ as default")
         if (self.lib.lower() == "numba") or not self.flagCpp:
             if (self.lib.lower() == "cpp") and not self.flagCpp:
                 warnings.warn("ERROR! C++ not imported correctly. Falling back to numba")
             self.lib    = "numba"
+
+        if self.lib.lower() == "cpp":
+            self.lib_fcn= PyMKL.lib.cpp
+            self.flagCpp= True
+        elif self.lib.lower() == "numba":
             self.lib_fcn= PyMKL.lib.numba
             self.flagCpp= False
+        else:
+            raise ValueError("This should not happen")
 
         # Break symmetry
         preconditioner  = 0.00*np.random.rand(self.M, 1) + np.ones((self.M, 1))
