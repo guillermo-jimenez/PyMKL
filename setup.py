@@ -34,33 +34,57 @@ def get_version(rel_path):
         raise RuntimeError("Unable to find version string.")
 
 # Generate Python library
-setup(
-    name="PyMKL",
-    description="Multiple Kernel Learning implementation for Python",
-    url="https://github.com/gjimenez/PyMKL",
-    author="Guillermo Jimenez-Perez",
-    author_email="<guillermo@jimenezperez.com>",
-    # Needed to actually package something
-    packages=find_packages(),
-    # Needed for dependencies
-    install_requires=["numpy", "scipy", "picos", "cvxopt", "smcp", "joblib", 
-                      "pandas", "tqdm", "scikit-learn", "networkx",
-                      "sak @ git+https://github.com/guillermo-jimenez/sak.git"],
-    # *strongly* suggested for sharing
-    version=get_version("PyMKL/__init__.py"),
-    # The license can be anything you like
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: GNU General Public License",
-        "Operating System :: OS Independent",
-    ],
-    python_requires='>=3.6',
-    py_modules = ["libPyMKL"],
-    ext_modules=[
-        Extension(
-            "PyMKL/lib/libPyMKL",
-            ["PyMKL/lib/libPyMKL.c",],
-        ),
-    ],
-    cmdclass={'build_ext': build_ext},
-)
+try:
+    setup(
+        name="PyMKL",
+        description="Multiple Kernel Learning implementation for Python",
+        url="https://github.com/gjimenez/PyMKL",
+        author="Guillermo Jimenez-Perez",
+        author_email="<guillermo@jimenezperez.com>",
+        # Needed to actually package something
+        packages=find_packages(),
+        # Needed for dependencies
+        install_requires=["numpy", "scipy", "picos", "cvxopt", "smcp", "joblib", 
+                        "pandas", "tqdm", "scikit-learn", "networkx", "numba", 
+                        "sak @ git+https://github.com/guillermo-jimenez/sak.git"],
+        # *strongly* suggested for sharing
+        version=get_version("PyMKL/__init__.py"),
+        # The license can be anything you like
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "License :: OSI Approved :: GNU General Public License",
+            "Operating System :: OS Independent",
+        ],
+        python_requires='>=3.6',
+        py_modules = ["libPyMKL"],
+        ext_modules=[
+            Extension(
+                "PyMKL/lib/libPyMKL",
+                ["PyMKL/lib/libPyMKL.c",],
+            ),
+        ],
+        cmdclass={'build_ext': build_ext},
+    )
+except (Exception, SystemExit):
+    setup(
+        name="PyMKL",
+        description="Multiple Kernel Learning implementation for Python",
+        url="https://github.com/gjimenez/PyMKL",
+        author="Guillermo Jimenez-Perez",
+        author_email="<guillermo@jimenezperez.com>",
+        # Needed to actually package something
+        packages=find_packages(),
+        # Needed for dependencies
+        install_requires=["numpy", "scipy", "picos", "cvxopt", "smcp", "joblib", 
+                        "pandas", "tqdm", "scikit-learn", "networkx", "numba", 
+                        "sak @ git+https://github.com/guillermo-jimenez/sak.git"],
+        # *strongly* suggested for sharing
+        version=get_version("PyMKL/__init__.py"),
+        # The license can be anything you like
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "License :: OSI Approved :: GNU General Public License",
+            "Operating System :: OS Independent",
+        ],
+        python_requires='>=3.6'
+    )
