@@ -26,7 +26,7 @@ import PyMKL.lib
 
 class MKL():
     def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
-                 eps: float = 1e-6, verbose: bool = True, solver: str = "smcp"):
+                 eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt"):
         """Unsupervised Multiple Kernel Learning formulation.
         Inputs:
         * X:            List of M numpy arrays, each consisting of a NxD stack of the samples under those features.
@@ -48,6 +48,8 @@ class MKL():
         self.verbose    = verbose
         if self.M >= 65:
             warnings.warn("BEWARE! The algorithm is not guaranteed to converge with 60+ input features.")
+        if self.solver != "smcp":
+            warnings.warn("BEWARE! Algorithm works much better with the 'smcp' solver, installed via 'pip install smcp', but some systems fail when installing it")
 
         # Break symmetry
         preconditioner  = 0.00*np.random.rand(self.M, 1) + np.ones((self.M, 1))
@@ -156,7 +158,7 @@ class MKL():
         sdp.add_constraint(betas >= 0)
         # sdp.add_constraint(pic.sum([betas[i] for i in range(self.M)],'i','0...'+str(self.M)) == 1)
         sdp.add_constraint(((1 & betas.T) // (betas & B))>>0 )
-
+        
         sdp.solve(solver=self.solver, solve_via_dual=False, verbose=False)
 
         betas               = np.array(betas.value)

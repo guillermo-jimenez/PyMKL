@@ -44,7 +44,7 @@ try:
         # Needed to actually package something
         packages=find_packages(),
         # Needed for dependencies
-        install_requires=["numpy", "scipy", "picos", "cvxopt", "smcp", "joblib", 
+        install_requires=["numpy", "scipy", "picos", "cvxopt", "joblib", 
                         "pandas", "tqdm", "scikit-learn", "networkx", "numba", 
                         "sak @ git+https://github.com/guillermo-jimenez/sak.git"],
         # *strongly* suggested for sharing
@@ -75,7 +75,7 @@ except (Exception, SystemExit):
         # Needed to actually package something
         packages=find_packages(),
         # Needed for dependencies
-        install_requires=["numpy", "scipy", "picos", "cvxopt", "smcp", "joblib", 
+        install_requires=["numpy", "scipy", "picos", "cvxopt", "joblib", 
                         "pandas", "tqdm", "scikit-learn", "networkx", "numba", 
                         "sak @ git+https://github.com/guillermo-jimenez/sak.git"],
         # *strongly* suggested for sharing
