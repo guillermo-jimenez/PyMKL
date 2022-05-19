@@ -1,8 +1,8 @@
 import os
-PyMKL.lib.cpp = None
-import PyMKL.lib.numba
+cpp = None
+from . import numba
 try:
-    import PyMKL.lib.cpp
+    from . import cpp
     from PyMKL.lib.cpp import computeENERGY
     from PyMKL.lib.cpp import computeSWA
     from PyMKL.lib.cpp import computeSWB
