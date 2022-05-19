@@ -102,7 +102,7 @@ class MKL():
             except KeyboardInterrupt:
                 raise
         else:
-            (SW_betas,SD_betas)     = self.__lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,np.diag(self.D).copy(),0,self.N)
+            (SW_betas,SD_betas)     = self.__lib.computeSWB(np.moveaxis(self.K,0,-1),self.betas,self.W,self.D[:,0],0,self.N)
 
         SW_betas            = SW_betas + np.triu(SW_betas,1).T
         SD_betas            = SD_betas + np.triu(SD_betas,1).T
@@ -156,7 +156,7 @@ class MKL():
             except KeyboardInterrupt:
                 raise
         else:
-            (SW_A,SD_A)         = self.__lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,np.diag(self.D).copy(),0,self.N)
+            (SW_A,SD_A)         = self.__lib.computeSWA(np.moveaxis(self.K,0,-1),self.A,self.W,self.D[:,0],0,self.N)
 
         # Solve solution throwing double the result in C compiled code
         SW_A                = (SW_A + np.triu(SW_A,1).T)
@@ -209,7 +209,7 @@ class MKL():
             except KeyboardInterrupt:
                 raise
         else:
-            (gap, constr)       = self.__lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, np.diag(self.D).copy(), 0, self.N)
+            (gap, constr)       = self.__lib.computeENERGY(np.moveaxis(self.K,0,-1), self.betas, self.A, self.W, self.D[:,0], 0, self.N)
 
         # Store energy
         self.energy.append(gap)

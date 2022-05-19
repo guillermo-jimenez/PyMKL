@@ -4,4 +4,4 @@ import PyMKL.kernels
 import PyMKL.analysis
 import PyMKL.plot
 
-__version__ = "0.0.3.0"
+__version__ = "0.0.3.1"
