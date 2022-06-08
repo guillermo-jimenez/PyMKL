@@ -154,7 +154,7 @@ def default(x: np.ndarray, *args, **kwargs):
     return K,1,1
 
 
-def kernel_stack(X: Union[List[np.ndarray],Dict[Any,np.ndarray]], kernel: str = "euclidean", knn: int = None, alpha: float = -1, return_sigmas: bool = False) -> Tuple[np.ndarray,np.ndarray]:
+def kernel_stack(X: Union[List[np.ndarray],Dict[Any,np.ndarray]], kernel: Union[str,List[str]] = "euclidean", knn: int = None, alpha: float = -1, return_sigmas: bool = False) -> Tuple[np.ndarray,np.ndarray]:
     """Obtain kernels from list of features through a metric. Current metric is 
     squareform(pdist(x,metric="euclidean")), but any metric that operates on a 
     matrix M ∈ [S x L], where S is the number of samples in the population and L
@@ -185,9 +185,21 @@ def kernel_stack(X: Union[List[np.ndarray],Dict[Any,np.ndarray]], kernel: str = 
         knn = math.floor(np.sqrt(N))
 
     # Check kernel in valid kernels
-    if kernel not in KERNEL_LIST:
-        raise ValueError(f"Valid kernels are: {KERNEL_LIST}")
-    kernel = eval(kernel)
+    per_kernel = False
+    if isinstance(kernel, str):
+        if kernel not in KERNEL_LIST:
+            raise ValueError(f"Valid kernels are: {KERNEL_LIST}")
+        kernel = eval(kernel)
+        per_kernel = False
+    elif isinstance(kernel, (list, tuple)):
+        for k in kernel:
+            if k not in KERNEL_LIST:
+                raise ValueError(f"Valid kernels are: {KERNEL_LIST}. Provided kernel: {k}")
+        kernel = [eval(k) for k in kernel]
+        assert len(kernel) == len(X), "Invalid kernel configuration. Must be of the same size of X"
+        per_kernel = True
+    else:
+        raise ValueError(f"Kernel type not supported. Valid kernels are: {KERNEL_LIST} or a list of them")
         
     # Create matrix
     K = np.zeros((M, N, N), dtype='float64')
@@ -203,7 +215,10 @@ def kernel_stack(X: Union[List[np.ndarray],Dict[Any,np.ndarray]], kernel: str = 
             feature = X[k]
 
         # Obtain kernel value
-        K[m],var[m],sigmas[m] = kernel(feature,knn=knn,alpha=alpha)
+        if per_kernel:
+            K[m],var[m],sigmas[m] = kernel[m](feature,knn=knn,alpha=alpha)
+        else:
+            K[m],var[m],sigmas[m] = kernel(feature,knn=knn,alpha=alpha)
 
     if return_sigmas:
         return K, var, sigmas
