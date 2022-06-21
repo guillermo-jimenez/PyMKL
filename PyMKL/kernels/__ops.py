@@ -10,16 +10,10 @@ from scipy.spatial.distance import pdist, cdist, squareform
 
 KERNEL_LIST = ("euclidean", "euclidean_density", "categorical", "ordinal", "xcorr", "euclidean_xcorr", "default")
 
-def euclidean_xcorr(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
-    x = x.copy().squeeze()
-    if x.ndim == 1:
-        x = x[:,None]
-    if x.ndim != 2:
-        raise ValueError("euclidean_xcorr kernel must take 1D or 2D inputs")
-
+def euclidean_xcorr(x: np.ndarray, y: np.ndarray = None, knn: int = None, alpha: float = -1, maxlags: int = 0, **kwargs):
     # Obtain pairwise distances
-    K_eucl,_,_ = euclidean(x,knn,alpha,**kwargs)
-    K_corr,_,_ = xcorr(x,**kwargs)
+    K_eucl,_,_ = euclidean(x,y,knn,alpha,**kwargs)
+    K_corr,_,_ = xcorr(x,y,**kwargs)
     ptg = kwargs.get("proportion",0.5)
     K = ptg*K_eucl + (1-ptg)*K_corr
     var = np.var(K)
@@ -27,41 +21,70 @@ def euclidean_xcorr(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
     return K,var,1
 
 
-def xcorr(x: np.ndarray, **kwargs):
+def xcorr(x: np.ndarray, y: np.ndarray = None, **kwargs):
     x = x.copy().squeeze()
     if x.ndim == 1:
         x = x[:,None]
     if x.ndim != 2:
         raise ValueError("xcorr kernel must take 1D or 2D inputs")
 
+    # If y is None, copy x
+    if y is None:
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
+        if y.ndim == 1:
+            y = y[:,None]
+        if y.ndim != 2:
+            raise ValueError("euclidean_xcorr kernel must take 1D or 2D inputs")
+
     # Obtain pairwise distances
-    K = (1+sak.signal.xcorr(x,maxlags=0)[0].squeeze())/2
+    K = (1+sak.signal.xcorr(x,y,maxlags=0)[0].squeeze())/2
     var = np.var(K)
 
     return K,var,1
 
 
-def euclidean(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
+def euclidean(x: np.ndarray, y: np.ndarray = None, knn: int = None, alpha: float = -1, **kwargs):
     x = x.copy().squeeze()
     if x.ndim == 1:
         x = x[:,None]
     if x.ndim != 2:
         raise ValueError("Euclidean kernel must take 1D or 2D inputs")
 
+    # If y is None, copy x
+    if y is None:
+        use_pdist = True
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
+        if y.ndim == 1:
+            y = y[:,None]
+        if y.ndim != 2:
+            raise ValueError("euclidean_xcorr kernel must take 1D or 2D inputs")
+        use_pdist = False
+
     # Get dimensions
     N = x.shape[0]
 
+    # Apply default number of nearest neighbours
+    if knn is None:
+        knn = math.floor(np.sqrt(N))
+
     # Obtain pairwise distances
-    distances = squareform(pdist(x,metric="euclidean"))
-    
+    if use_pdist:
+        distances = squareform(pdist(x,metric="euclidean"))
+    else:
+        distances = cdist(x,y,metric="euclidean")
+
     # Obtain inf-diagonal distances
     inf_distances = distances.copy()
-    np.fill_diagonal(inf_distances,np.inf)
-    
+    inf_distances[inf_distances < np.finfo(distances.dtype).eps] = np.inf
+
     # Sort these distances and retrieve the <knn>-th most similar elements for computing sigma
     inf_distances_sorted = np.sort(inf_distances,axis=0)
     sigma = np.mean(inf_distances_sorted[:min([knn,N]),:])
-    
+
     # Obtain kernel value
     K = np.exp(alpha*(np.square(distances) / (2.*(sigma)**2.)))
     var = np.var(K)
@@ -69,29 +92,48 @@ def euclidean(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
     return K,var,sigma
 
 
-def euclidean_density(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
+def euclidean_density(x: np.ndarray, y: np.ndarray = None, knn: int = None, alpha: float = -1, **kwargs):
     x = x.copy().squeeze()
     if x.ndim == 1:
         x = x[:,None]
     if x.ndim != 2:
         raise ValueError("Euclidean kernel must take 1D or 2D inputs")
 
+    # If y is None, copy x
+    if y is None:
+        use_pdist = True
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
+        if y.ndim == 1:
+            y = y[:,None]
+        if y.ndim != 2:
+            raise ValueError("euclidean_xcorr kernel must take 1D or 2D inputs")
+        use_pdist = False
+
     # Get dimensions
     N = x.shape[0]
 
+    # Apply default number of nearest neighbours
+    if knn is None:
+        knn = math.floor(np.sqrt(N))
+
     # Obtain pairwise distances
-    distances = squareform(pdist(x,metric="euclidean"))
-    
+    if use_pdist:
+        distances = squareform(pdist(x,metric="euclidean"))
+    else:
+        distances = cdist(x,y,metric="euclidean")
+
     # Obtain inf-diagonal distances
     inf_distances = distances.copy()
-    np.fill_diagonal(inf_distances,np.inf)
-    
+    inf_distances[inf_distances < np.finfo(distances.dtype).eps] = np.inf
+
     # Sort these distances and retrieve the <knn>-th most similar elements for computing sigma
     inf_distances_sorted = np.sort(inf_distances,axis=0)
     sigma = np.mean(inf_distances_sorted[:min([knn,N]),:],0)
     sigma[sigma == 0] = np.min(sigma[sigma > 0])
-    sigma = np.matlib(sigma,len(sigma),1).T
-    
+    sigma = np.matlib.repmat(sigma,N,1)
+
     # Obtain kernel value
     K = np.exp(alpha*(np.square(distances) / (2.*(sigma)**2.)))
     var = np.var(K)
@@ -99,27 +141,38 @@ def euclidean_density(x: np.ndarray, knn: int = 5, alpha: float = -1, **kwargs):
     return K,var,sigma
 
 
-def categorical(x: np.ndarray, *args, **kwargs):
+def categorical(x: np.ndarray, y: np.ndarray = None, *args, **kwargs):
     x = x.copy().squeeze()
     if x.ndim > 1:
         raise ValueError("Categorical kernel must take 1D inputs")
+    # If y is None, copy x
+    if y is None:
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
 
     # Count occurrences of each category    
-    counts = np.bincount(x)
-    unique = np.unique(x)
+    counts_x = np.bincount(x)
+    unique_x = np.unique(x)
+    counts_y = np.bincount(y)
+    unique_y = np.unique(y)
 
     # Take out zero if present (why, numpy, why)
-    if counts.size > unique.size:
-        counts = counts[1:]
+    if counts_x.size > unique_x.size:
+        counts_x = counts_x[1:]
+    if counts_y.size > unique_y.size:
+        counts_y = counts_y[1:]
 
     # Compute probability of each category in population
-    prob = np.zeros((len(x),))
-    for i,u in enumerate(unique):
-        prob[x == u] = counts[i]/len(x)
-    prob = np.matlib.repmat(prob[None,],len(x),1)
+    prob_x,prob_y = np.zeros((len(x),)),np.zeros((len(y),))
+    for i,u in enumerate(unique_x):
+        prob_x[x == u] = counts_x[i]/len(x)
+    for i,u in enumerate(unique_y):
+        prob_y[y == u] = counts_y[i]/len(y)
+    prob = np.sqrt((prob_x[:,None] * prob_y[None,:]))
 
     # Compute kernel
-    K = (x[:,None] == x[None,]) * (1-prob)
+    K = (x[:,None] == y[None,]) * (1-prob)
 
     if np.min(prob) > 0.05:
         K[K == 0] = np.min(prob)-0.05
@@ -127,29 +180,47 @@ def categorical(x: np.ndarray, *args, **kwargs):
     return K,1,1
 
 
-def ordinal(x: np.ndarray, *args, **kwargs):
+def ordinal(x: np.ndarray, y: np.ndarray = None, *args, **kwargs):
     x = x.copy().squeeze()
+    # If y is None, copy x
+    if y is None:
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
+    if x.ndim != y.ndim:
+        raise ValueError("x and y vectors have different depth")
+
     # Compute kernel
     if x.ndim == 1:
-        x_range = np.max(x) - np.min(x)
-        K = (x_range - np.abs(x[:,None] - x[None,]))/x_range
+        x_range = np.max(np.concatenate((x,y))) - np.min(np.concatenate((x,y)))
+        distances = np.abs(x[:,None] - y[None,])
     elif x.ndim == 2:
-        distances = squareform(pdist(x,metric="euclidean"))
+        distances = cdist(x,y,metric="euclidean")
         x_range = np.max(distances) - np.min(distances)
-        K = (x_range - distances)/x_range
     else:
         raise ValueError("Ordinal kernel must take 1D or 2D inputs")
+
+    K = (x_range - distances)/x_range
 
     return K,1,1
 
 
-def default(x: np.ndarray, *args, **kwargs):
+def default(x: np.ndarray, y: np.ndarray = None, *args, **kwargs):
     x = x.copy().squeeze()
     if x.ndim != 1:
         raise ValueError("Categorical kernel must take 1D inputs")
 
+    # If y is None, copy x
+    if y is None:
+        y = x.copy()
+    else:
+        y = y.copy().squeeze()
+
+    if x.ndim != y.ndim:
+        raise ValueError("x and y vectors have different depth")
+
     # Compute kernel
-    K = (x[:,None] == x[None,]).clip(min=0.9)
+    K = (x[:,None] == y[None,]).clip(min=0.9)
 
     return K,1,1
 
@@ -224,52 +295,6 @@ def kernel_stack(X: Union[List[np.ndarray],Dict[Any,np.ndarray]], kernel: Union[
         return K, var, sigmas
     else:
         return K, var
-
-
-def compute_kernel(XA: np.ndarray, XB: np.ndarray = None, metric: str = "euclidean", knn: int = None, sigma: float = None) -> Tuple[np.ndarray,np.ndarray]:
-    """Compute kernels from one or two sets of features through a metric. Current metric is 
-    squareform(pdist(x,metric="euclidean")), but any metric that operates on a 
-    matrix M ∈ [S x L], where S is the number of samples in the population and L
-    is the length of the sample, is valid. Moreover, custom metrics can operate
-    with features that contain samples with different lengths in a List[List[float]]
-    fashion.
-
-    Inputs:
-    * XA:       np.ndarray
-    * XB:       np.ndarray
-    * metric:   str, metric to be used in scipy.spatial.distance.pdist (or cdist)
-    * knn:      <int>, number of nearest neighbours for the computation of the sigma
-
-    For further details, refer to https://doi.org/10.1016/j.media.2016.06.007 and to 
-    https://doi.org/10.1109/TPAMI.2010.183
-    """
-
-    # Obtain pairwise distances
-    if XB is None:
-        distances = squareform(pdist(XA,metric=metric))
-    else:
-        XAB = np.concatenate((XA,XB),axis=0)
-        distances = cdist(XA,XAB,metric=metric)
-
-    if sigma is None:
-        # Obtain inf-diagonal distances
-        inf_distances = distances.copy()
-        np.fill_diagonal(inf_distances,np.inf)
-        
-        # Sort these distances
-        inf_distances_sorted = np.sort(inf_distances,axis=0)
-
-        # Retrieve the <knn>-th most similar elements for computing sigma
-        sigma = np.mean(inf_distances_sorted[:knn,:])
-
-    # Obtain kernel value
-    K = np.exp(-1. * (np.square(distances) / (2.*(sigma)**2.)))
-    var = np.var(K)
-
-    if XB is not None:
-        K = K[:,-XB.shape[0]:]
-
-    return K, var
 
 
 def get_W_and_D(K: np.ndarray, var: np.ndarray, knn: int = None):

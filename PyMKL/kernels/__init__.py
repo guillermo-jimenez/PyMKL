@@ -6,5 +6,4 @@ from .__ops import categorical
 from .__ops import ordinal
 from .__ops import default
 from .__ops import kernel_stack
-from .__ops import compute_kernel
 from .__ops import get_W_and_D
