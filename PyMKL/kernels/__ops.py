@@ -141,7 +141,7 @@ def euclidean_density(x: np.ndarray, y: np.ndarray = None, knn: int = None, alph
     return K,var,sigma
 
 
-def categorical(x: np.ndarray, y: np.ndarray = None, alpha: float = 1.0, random: float = 0.0, eye: bool = False, *args, **kwargs):
+def categorical(x: np.ndarray, y: np.ndarray = None, alpha: float = 1.0, random: float = 0.0, zero_method: str = "min", eye: bool = False, *args, **kwargs):
     """https://upcommons.upc.edu/bitstream/handle/2099.1/17172/MarcoVillegas.pdf"""
     x = x.copy().squeeze()
     if x.ndim > 1:
@@ -173,10 +173,12 @@ def categorical(x: np.ndarray, y: np.ndarray = None, alpha: float = 1.0, random:
     prob = np.sqrt((prob_x[:,None] * prob_y[None,:]))
 
     # Compute kernel
-    K = (x[:,None] == y[None,]) * (1-prob)
+    K = (x[:,None] == y[None,]) * (1 - prob**alpha)**(1/alpha)
 
     # Add values when proba is zero (modified from Marco Villegas)
-    if np.min(prob) > 0.05:
+    if zero_method == "min":
+        K[K == 0] = np.clip(np.min(prob)/2,0,1)
+    else:
         K[K == 0] = np.clip(np.min(prob)-0.05,0,1)
     
     # [EXPERIMENTAL] Give some leeway to slightly random values
