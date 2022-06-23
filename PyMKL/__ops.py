@@ -25,9 +25,8 @@ except ImportError:
 import PyMKL.lib
 
 class MKL():
-    def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, maxiter: int = 25, 
-                 eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt", 
-                 lib: str = None):
+    def __init__(self, K: np.ndarray, W: np.ndarray, D: np.ndarray, noise: float = 0.01, update_betas: bool = True, 
+                 maxiter: int = 25, eps: float = 1e-6, verbose: bool = True, solver: str = "cvxopt", lib: str = None):
         """Unsupervised Multiple Kernel Learning formulation.
         Inputs:
         * X:            List of M numpy arrays, each consisting of a NxD stack of the samples under those features.
@@ -37,39 +36,45 @@ class MKL():
         """
 
         # Store inputs
-        self.K          = K.astype("float64")
-        self.W          = W.astype("float64")
-        self.D          = D.astype("float64")
-        self.iter       = 0
-        self.maxiter    = maxiter
-        self.solver     = solver
-        self.lib        = lib if ((lib is not None) and isinstance(lib,str)) else "cpp"
-        self.M          = self.K.shape[0]
-        self.N          = self.K.shape[1]
-        self.eps        = eps
-        self.verbose    = verbose
+        self.K            = K.astype("float64")
+        self.W            = W.astype("float64")
+        self.D            = D.astype("float64")
+        self.iter         = 0
+        self.maxiter      = maxiter
+        self.solver       = solver
+        self.lib          = lib if ((lib is not None) and isinstance(lib,str)) else "cpp"
+        self.M            = self.K.shape[0]
+        self.N            = self.K.shape[1]
+        self.eps          = eps
+        self.noise        = noise
+        self.verbose      = verbose
         if self.M >= 65:
             warnings.warn("BEWARE! The algorithm is not guaranteed to converge with 60+ input features.")
         if self.solver != "smcp":
-            warnings.warn("BEWARE! Algorithm works much better with the 'smcp' solver, installed via 'pip install smcp', but some systems fail when installing it")
+            warnings.warn("BEWARE! Algorithm works better with the 'smcp' solver, installed via 'pip install smcp', but some systems fail when installing it. Try installing and pass the argument solver='smcp' in PyMKL.MKL")
 
         # Select default compute lib
         if self.lib.lower() not in ["cpp", "numba"]:
-            self.lib    = "cpp"
+            self.lib      = "cpp"
             warnings.warn("Selecting C++ as default")
         if (self.lib.lower() == "numba") or not PyMKL.lib.flagCpp:
             if (self.lib.lower() == "cpp") and not PyMKL.lib.flagCpp:
                 warnings.warn("ERROR! C++ library not imported correctly. Falling back to numba")
-            self.lib    = "numba"
+            self.lib      = "numba"
 
         # Break symmetry
-        preconditioner  = 0.00*np.random.rand(self.M, 1) + np.ones((self.M, 1))
-        self.betas      = preconditioner/np.sum(preconditioner)
-        self.fitted     = False
-        self.energy     = []
-        self.constr     = []
-        self.gap        = np.nan
-        self.tolerance  = np.inf
+        preconditioner    = self.noise*np.random.rand(self.M, 1) + np.ones((self.M, 1))
+        self.betas        = preconditioner/np.sum(preconditioner)
+        self.update_betas = update_betas
+        self.fitted       = False
+        self.energy       = []
+        self.constr       = []
+        self.gap          = np.nan
+        self.tolerance    = np.inf
+    
+        # Warning
+        if not self.update_betas:
+            warnings.warn("BEWARE! 'update_betas' is set to FALSE! This is discouraged unless you know what you are doing!")
 
 
     def __compute_SWB_caller(self):  # solve for A (generalized eigenvalue problem)
@@ -210,33 +215,38 @@ class MKL():
 
     def fit(self):
         if not self.fitted:
-            iterator = tqdm.tqdm(np.arange(1,self.maxiter+1), 
-                                 desc="Iteration {:>3d}/{:>3d}, Energy {:10.6f} (> tolerance {:10.6f})".format(self.iter, self.maxiter, self.gap, self.tolerance))
+            if self.update_betas:
+                iterator = tqdm.tqdm(np.arange(1,self.maxiter+1), 
+                                    desc="Iteration {:>3d}/{:>3d}, Energy {:10.6f} (> tolerance {:10.6f})".format(self.iter, self.maxiter, self.gap, self.tolerance))
 
-            for self.iter in iterator:
-                # Optimize model
+                for self.iter in iterator:
+                    # Optimize model
+                    self.__compute_SWB_caller()
+                    self.__compute_SWA_caller()
+                    self.__convex_optimization()
+                    self.__compute_ENERGY_caller()
+
+
+                    # Get gap
+                    self.gap = np.diff(self.energy[::-1])[0] if len(self.energy) > 1 else np.nan
+
+                    # Set tolerance
+                    if self.iter == 2:
+                        self.tolerance = np.abs(self.energy[0] - self.energy[1])*0.01;
+                    
+                    # Break if convergence
+                    if np.abs(self.gap) <= self.tolerance:
+                        iterator.set_description("Iteration {:>3d}/{:>3d}, Energy {:10.6f} (< tolerance {:10.6f}; BREAK!)".format(self.iter, self.maxiter, self.gap, self.tolerance),refresh=True)
+                        break
+                    # Update iterator
+                    iterator.set_description("Iteration {:>3d}/{:>3d}, Energy {:10.6f} (> tolerance {:10.6f})".format(self.iter, self.maxiter, self.gap, self.tolerance),refresh=False)
+
+                if self.iter == self.maxiter:
+                    print("Converged!")
+            else:
+                print("Computing projection without betas...")
                 self.__compute_SWB_caller()
-                self.__compute_SWA_caller()
-                self.__convex_optimization()
-                self.__compute_ENERGY_caller()
-
-
-                # Get gap
-                self.gap = np.diff(self.energy[::-1])[0] if len(self.energy) > 1 else np.nan
-
-                # Set tolerance
-                if self.iter == 2:
-                    self.tolerance = np.abs(self.energy[0] - self.energy[1])*0.01;
-                
-                # Break if convergence
-                if np.abs(self.gap) <= self.tolerance:
-                    iterator.set_description("Iteration {:>3d}/{:>3d}, Energy {:10.6f} (< tolerance {:10.6f}; BREAK!)".format(self.iter, self.maxiter, self.gap, self.tolerance),refresh=True)
-                    break
-                # Update iterator
-                iterator.set_description("Iteration {:>3d}/{:>3d}, Energy {:10.6f} (> tolerance {:10.6f})".format(self.iter, self.maxiter, self.gap, self.tolerance),refresh=False)
-
-            if self.iter == self.maxiter:
-                print("Converged!")
+                print("Computed!")
         else:
             print("Model is already trained")
 
