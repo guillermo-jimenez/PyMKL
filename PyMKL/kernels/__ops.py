@@ -141,7 +141,8 @@ def euclidean_density(x: np.ndarray, y: np.ndarray = None, knn: int = None, alph
     return K,var,sigma
 
 
-def categorical(x: np.ndarray, y: np.ndarray = None, *args, **kwargs):
+def categorical(x: np.ndarray, y: np.ndarray = None, alpha: float = 1.0, random: float = 0.0, eye: bool = False, *args, **kwargs):
+    """https://upcommons.upc.edu/bitstream/handle/2099.1/17172/MarcoVillegas.pdf"""
     x = x.copy().squeeze()
     if x.ndim > 1:
         raise ValueError("Categorical kernel must take 1D inputs")
@@ -174,8 +175,17 @@ def categorical(x: np.ndarray, y: np.ndarray = None, *args, **kwargs):
     # Compute kernel
     K = (x[:,None] == y[None,]) * (1-prob)
 
+    # Add values when proba is zero (modified from Marco Villegas)
     if np.min(prob) > 0.05:
-        K[K == 0] = np.min(prob)-0.05
+        K[K == 0] = np.clip(np.min(prob)-0.05,0,1)
+    
+    # [EXPERIMENTAL] Give some leeway to slightly random values
+    if random != 0:
+        K = np.clip(K*np.random.uniform(1-random,1+random,K.shape), a_min=0, a_max=1)
+
+    # [EXPERIMENTAL] Fill diagonal (distance to self is zero)
+    if eye:
+        np.fill_diagonal(K,np.ones((K.shape[0],1)))
 
     return K,1,1
 
